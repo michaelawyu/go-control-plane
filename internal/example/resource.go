@@ -19,6 +19,7 @@ import (
 
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	cluster "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
@@ -40,6 +41,14 @@ const (
 	ListenerPort = 10000
 	UpstreamHost = "www.envoyproxy.io"
 	UpstreamPort = 80
+
+	clusterNameA = "bravelion"
+	clusterNameB = "jumpingcat"
+	podIPA       = "10.16.0.19"
+	podIPB       = "10.16.0.24"
+	podIPC       = "10.32.0.29"
+	podIPD       = "10.32.0.86"
+	podPort      = 8080
 )
 
 func makeCluster(clusterName string) *cluster.Cluster {
@@ -50,6 +59,108 @@ func makeCluster(clusterName string) *cluster.Cluster {
 		LbPolicy:             cluster.Cluster_ROUND_ROBIN,
 		LoadAssignment:       makeEndpoint(clusterName),
 		DnsLookupFamily:      cluster.Cluster_V4_ONLY,
+	}
+}
+
+func makeDemoClusterA() *cluster.Cluster {
+	return &cluster.Cluster{
+		Name:                 clusterNameA,
+		ConnectTimeout:       durationpb.New(5 * time.Second),
+		ClusterDiscoveryType: &cluster.Cluster_Type{Type: cluster.Cluster_STATIC},
+		LbPolicy:             cluster.Cluster_ROUND_ROBIN,
+		LoadAssignment: &endpoint.ClusterLoadAssignment{
+			ClusterName: clusterNameA,
+			Endpoints: []*endpoint.LocalityLbEndpoints{{
+				LbEndpoints: []*endpoint.LbEndpoint{
+					{
+						HostIdentifier: &endpoint.LbEndpoint_Endpoint{
+							Endpoint: &endpoint.Endpoint{
+								Address: &core.Address{
+									Address: &core.Address_SocketAddress{
+										SocketAddress: &core.SocketAddress{
+											Protocol: core.SocketAddress_TCP,
+											Address:  podIPA,
+											PortSpecifier: &core.SocketAddress_PortValue{
+												PortValue: podPort,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						HostIdentifier: &endpoint.LbEndpoint_Endpoint{
+							Endpoint: &endpoint.Endpoint{
+								Address: &core.Address{
+									Address: &core.Address_SocketAddress{
+										SocketAddress: &core.SocketAddress{
+											Protocol: core.SocketAddress_TCP,
+											Address:  podIPB,
+											PortSpecifier: &core.SocketAddress_PortValue{
+												PortValue: podPort,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}},
+		},
+		DnsLookupFamily: cluster.Cluster_V4_ONLY,
+	}
+}
+
+func makeDemoClusterB() *cluster.Cluster {
+	return &cluster.Cluster{
+		Name:                 clusterNameB,
+		ConnectTimeout:       durationpb.New(5 * time.Second),
+		ClusterDiscoveryType: &cluster.Cluster_Type{Type: cluster.Cluster_STATIC},
+		LbPolicy:             cluster.Cluster_ROUND_ROBIN,
+		LoadAssignment: &endpoint.ClusterLoadAssignment{
+			ClusterName: clusterNameB,
+			Endpoints: []*endpoint.LocalityLbEndpoints{{
+				LbEndpoints: []*endpoint.LbEndpoint{
+					{
+						HostIdentifier: &endpoint.LbEndpoint_Endpoint{
+							Endpoint: &endpoint.Endpoint{
+								Address: &core.Address{
+									Address: &core.Address_SocketAddress{
+										SocketAddress: &core.SocketAddress{
+											Protocol: core.SocketAddress_TCP,
+											Address:  podIPC,
+											PortSpecifier: &core.SocketAddress_PortValue{
+												PortValue: podPort,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						HostIdentifier: &endpoint.LbEndpoint_Endpoint{
+							Endpoint: &endpoint.Endpoint{
+								Address: &core.Address{
+									Address: &core.Address_SocketAddress{
+										SocketAddress: &core.SocketAddress{
+											Protocol: core.SocketAddress_TCP,
+											Address:  podIPD,
+											PortSpecifier: &core.SocketAddress_PortValue{
+												PortValue: podPort,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}},
+		},
+		DnsLookupFamily: cluster.Cluster_V4_ONLY,
 	}
 }
 
@@ -94,6 +205,44 @@ func makeRoute(routeName string, clusterName string) *route.RouteConfiguration {
 					Route: &route.RouteAction{
 						ClusterSpecifier: &route.RouteAction_Cluster{
 							Cluster: clusterName,
+						},
+						HostRewriteSpecifier: &route.RouteAction_HostRewriteLiteral{
+							HostRewriteLiteral: UpstreamHost,
+						},
+					},
+				},
+			}},
+		}},
+	}
+}
+
+func makeDemoRoute(routeName string) *route.RouteConfiguration {
+	return &route.RouteConfiguration{
+		Name: routeName,
+		VirtualHosts: []*route.VirtualHost{{
+			Name:    "local_service",
+			Domains: []string{"*"},
+			Routes: []*route.Route{{
+				Match: &route.RouteMatch{
+					PathSpecifier: &route.RouteMatch_Prefix{
+						Prefix: "/",
+					},
+				},
+				Action: &route.Route_Route{
+					Route: &route.RouteAction{
+						ClusterSpecifier: &route.RouteAction_WeightedClusters{
+							WeightedClusters: &route.WeightedCluster{
+								Clusters: []*route.WeightedCluster_ClusterWeight{
+									{
+										Name:   clusterNameA,
+										Weight: wrapperspb.UInt32(80),
+									},
+									{
+										Name:   clusterNameB,
+										Weight: wrapperspb.UInt32(20),
+									},
+								},
+							},
 						},
 						HostRewriteSpecifier: &route.RouteAction_HostRewriteLiteral{
 							HostRewriteLiteral: UpstreamHost,
@@ -172,8 +321,8 @@ func makeConfigSource() *core.ConfigSource {
 func GenerateSnapshot() *cache.Snapshot {
 	snap, _ := cache.NewSnapshot("1",
 		map[resource.Type][]types.Resource{
-			resource.ClusterType:  {makeCluster(ClusterName)},
-			resource.RouteType:    {makeRoute(RouteName, ClusterName)},
+			resource.ClusterType:  {makeDemoClusterA(), makeDemoClusterB()},
+			resource.RouteType:    {makeDemoRoute(RouteName)},
 			resource.ListenerType: {makeHTTPListener(ListenerName, RouteName)},
 		},
 	)
