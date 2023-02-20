@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: fleetl7poc.azurecr.io/xds
+          image: YOUR-XDS-IMAGE
           imagePullPolicy: Always
           ports:
           - containerPort: 18000
