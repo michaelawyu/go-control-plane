@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xds
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: xds
+  template:
+    metadata:
+      labels:
+        app: xds
+    spec:
+      containers:
+        - name: app
+          image: fleetl7poc.azurecr.io/xds
+          imagePullPolicy: Always
+          ports:
+          - containerPort: 18000
+          resources:
+            requests:
+              cpu: "0.2"
+              memory: "400M"
+            limits:
+              cpu: "0.2"
+              memory: "400M"

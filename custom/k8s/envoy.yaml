@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: envoy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: envoy
+  template:
+    metadata:
+      labels:
+        app: envoy
+    spec:
+      containers:
+        - name: app
+          image: YOUR-ENVOY-IMAGE
+          imagePullPolicy: Always
+          ports:
+          - containerPort: 10000
+          resources:
+            requests:
+              cpu: "0.2"
+              memory: "400M"
+            limits:
+              cpu: "0.2"
+              memory: "400M"
