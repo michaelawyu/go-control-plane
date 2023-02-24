@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: member-cluster-id
+  namespace: work
+data:
+  id: bravelion

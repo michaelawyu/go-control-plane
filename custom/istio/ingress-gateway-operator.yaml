@@ -1,0 +1,21 @@
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  name: appingress
+spec:
+  revision: ""
+  profile: empty
+  components:
+    ingressGateways:
+      - name: istio-appingressgateway
+        label:
+          istio: appingressgateway
+          app: istio-appingressgateway
+          topology.istio.io/network: peered
+        enabled: true
+  values:
+    gateways:
+      istio-ingressgateway:
+        injectionTemplate: gateway
+    global:
+      network: peered
